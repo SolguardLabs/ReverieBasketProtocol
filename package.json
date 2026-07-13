@@ -15,7 +15,7 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@types/node": "^20.14.10",
-    "hardhat": "^2.22.19",
+    "hardhat": "^3.9.1",
     "prettier": "^3.6.2",
     "prettier-plugin-solidity": "^1.4.3",
     "ts-node": "^10.9.2",
