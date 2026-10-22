@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
+import { ReverieDepositClient } from "../client/ReverieDepositClient";
 
 const WAD = ethers.parseEther("1");
 const DAY = 24 * 60 * 60;
@@ -99,6 +100,18 @@ async function mintBasket(
 }
 
 describe("ReverieBasketProtocol", function () {
+  it("prepares a deposit plan using balances, allowances and the vault quote", async function () {
+    const ctx = await deployFixture();
+    const client = new ReverieDepositClient(ctx.vault);
+    const plan = await client.plan(eth("1000"), ctx.alice.address, ctx.alice.address);
+    expect(plan.ready).to.equal(true);
+    expect(plan.grossValue).to.equal(eth("1000"));
+    expect(plan.requirements.map((item) => item.amount)).to.deep.equal([usdc("500"), eth("0.25")]);
+    expect(plan.requirements.every((item) => item.balanceShortfall === 0n)).to.equal(true);
+    const empty = await client.plan(eth("1000"), ctx.deployer.address, ctx.deployer.address);
+    expect(empty.ready).to.equal(false);
+    expect(empty.requirements[0].balanceShortfall).to.equal(usdc("500"));
+  });
   it("mints basket shares from weighted component deposits", async function () {
     const ctx = await deployFixture();
 

@@ -1,7 +1,7 @@
 {
   "name": "reverie-basket-protocol",
   "version": "1.0.0",
-  "description": "Solguard CTF lab for a tokenized yield basket protocol with scheduled component substitutions.",
+  "description": "Infraestructura de cestas tokenizadas con sustituciones programadas de componentes.",
   "private": true,
   "license": "MIT",
   "scripts": {
@@ -10,7 +10,8 @@
     "test:verbose": "hardhat test --network hardhat",
     "clean": "hardhat clean",
     "fmt": "prettier --config .prettierrc --ignore-path .prettierignore --write .",
-    "ci": "hardhat compile && hardhat test"
+    "typecheck": "tsc --noEmit --project tsconfig.client.json",
+    "ci": "bun run build && bun run typecheck && bun run test"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
