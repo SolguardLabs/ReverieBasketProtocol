@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["./hardhat.config.ts", "./test/**/*.ts", "./scripts/**/*.ts"]
+  "include": ["./hardhat.config.ts", "./client/**/*.ts", "./test/**/*.ts", "./scripts/**/*.ts"]
 }

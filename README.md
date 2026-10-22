@@ -1,93 +1,80 @@
 # Reverie Basket Protocol
 
-![banner](./assets/banner.png)
+![Banner de Reverie Basket Protocol](./assets/banner.png)
 
-ReverieBasketProtocol is a Solidity and TypeScript implementation of a tokenized basket protocol.
-Users mint `RVB` by depositing a weighted set of ERC-20 components, receive yield-bearing basket
-shares, redeem shares in kind, and rely on keepers to schedule weight updates and component
-substitutions.
+Reverie gestiona una cesta tokenizada de componentes ERC-20. El usuario deposita los activos conforme a los pesos vigentes y recibe `RVB`; las participaciones permiten solicitar una redención proporcional o una selección de activos admitidos. Inventario, precios, políticas y operaciones programadas se gestionan en módulos separados.
 
-The repository is structured as a production-style review target. Contracts are modular, the
-protocol exposes reporting views, and the TypeScript tests cover minting, redemption, yield
-harvesting, weight updates, and replacing a basket component.
+## Arquitectura
 
-## Architecture
-
-```text
-                  +---------------------+
-                  | ReveriePriceOracle |
-                  +----------+----------+
-                             |
-+----------------+   +-------v--------+   +----------------+
-| Component      |<--| ReverieBasket  |-->| ReverieLens    |
-| Registry       |   | Protocol       |   | Account Lens   |
-+----------------+   +-------+--------+   +----------------+
-                             |
-                             v
-                    Reverie Basket Token
+```mermaid
+flowchart LR
+    U[Usuario / cliente] -->|previewMint · mint| V[ReverieBasketProtocol]
+    U -->|redeem · redeemInKind| V
+    V --> R[ComponentRegistry]
+    V --> O[ReveriePriceOracle]
+    V --> P[ReverieRiskPolicy]
+    V --> T[RVB · participaciones]
+    V --> A[Inventario ERC-20]
+    H[ReverieHealthMonitor] --> V
+    H --> R
+    H --> O
 ```
 
-- `ReverieBasketProtocol` coordinates mint, redeem, harvest, weight updates, and substitutions.
-- `ReverieBasketToken` is the ERC-20 receipt minted by the vault.
-- `ComponentRegistry` stores component status, weights, yield flags, and operational limits.
-- `ReveriePriceOracle` stores admin-managed prices with heartbeat validation.
-- `ReverieRiskPolicy` centralizes delay, drift, fee, and substitution limits.
-- `ReverieLens` and `ReverieAccountLens` expose monitor-friendly protocol views.
+El registro determina estado, pesos y límites de cada componente. El oráculo entrega precios con heartbeat. La política acota comisiones, desvíos y ventanas temporales. El vault ejecuta depósitos, redenciones, cosechas y cambios programados; los módulos de lectura sirven a operadores e integradores sin custodiar activos.
 
-## Requirements
+## Modelo económico
 
-- Node.js 20 or newer.
-- npm.
+Para una emisión nominal `B` y componente activo `i` de peso `w_i` en puntos básicos, el depósito objetivo se valora como `V_i = B × w_i / 10 000`. La cantidad de tokens depende de `V_i`, del precio del oráculo y de los decimales del activo. `previewMint` expone las cantidades concretas antes de aprobar o enviar la transacción. Una redención proporcional distribuye el inventario activo según las participaciones quemadas y el suministro total de `RVB`.
 
-PowerShell users may need to invoke `npm.cmd` if local script execution is disabled.
+La sustitución de un componente es una operación programada: anuncio, recepción de inventario sustituto, espera mínima y cierre. Las consultas `navReport`, `componentValues` y `substitutionReadiness` ofrecen distintas vistas para seguimiento operativo; no reemplazan una política externa de ejecución ni una valoración independiente.
 
-## Quick Start
+```mermaid
+stateDiagram-v2
+    [*] --> Activo
+    Activo --> Anunciado: announceSubstitution
+    Anunciado --> Financiado: receiveSubstitutionInventory
+    Financiado --> Cerrado: completeSubstitution + plazo
+    Anunciado --> Cancelado: cancelSubstitution
+    Financiado --> Cancelado: cancelSubstitution
+```
+
+## Uso local
+
+Requiere Bun `1.3.14`. Los tests usan una red Hardhat local y tokens simulados. No se suministra configuración de despliegue público.
 
 ```bash
-npm install
-npm test
-```
-
-Windows:
-
-```powershell
-npm.cmd install
-npm.cmd test
-```
-
-Run the CI wrapper:
-
-```bash
+bun install --frozen-lockfile
+bun run build
+bun run typecheck
+bun run test
 bash scripts/ci.sh
 ```
 
-## Protocol Flow
+El cliente de solo lectura `ReverieDepositClient` consulta `previewMint` y calcula por activo saldo, allowance y faltante. Ejemplo para una instancia de vault ya conectada:
 
-1. Governance lists basket components and assigns active target weights.
-2. Users approve each component and call `mint(basketAmount, receiver)`.
-3. The vault pulls the weighted component amounts and mints `RVB`.
-4. Keepers call `harvest(asset, amount, source, reportHash)` for realized yield.
-5. Rebalancers announce target weight updates, wait for the configured delay, and apply them.
-6. Rebalancers can announce a component substitution, receive replacement inventory, then complete
-   the replacement after the settlement delay.
-7. Users can redeem shares pro rata or request selected in-kind components through the basket
-   redemption lane.
-
-## Commands
-
-```bash
-npm run build
-npm test
-npm run clean
+```ts
+const client = new ReverieDepositClient(vault);
+const plan = await client.plan(ethers.parseEther("1000"), owner, receiver);
+if (!plan.ready) console.table(plan.requirements);
 ```
 
-## Security Model
+`plan` no envía transacciones. El integrador debe verificar dirección de contrato, cadena, vigencia del precio y cambios de estado entre cotización y ejecución.
 
-Roles are separated into governor, keeper, rebalancer, strategist, risk manager, guardian, and
-pauser. Production deployments should assign each role to distinct multisig or timelock-controlled
-operators. The contracts assume standard ERC-20 behavior and do not support rebasing or
-fee-on-transfer components.
+## Estructura y documentación
 
-## License
+| Ruta                                   | Responsabilidad                                 |
+| -------------------------------------- | ----------------------------------------------- |
+| `src/vault`, `src/token`               | Custodia de componentes y suministro RVB        |
+| `src/core`, `src/oracle`, `src/policy` | Configuración, precios y límites                |
+| `src/modules`, `src/lens`              | Planificación, seguimiento y vistas             |
+| `client/`                              | Preparación de depósitos para integraciones     |
+| `test/`                                | Flujos funcionales y contratos de interfaz      |
+| `docs/`                                | Arquitectura, economía, integración y operación |
 
-Contracts are released under the MIT license.
+Consultar [arquitectura](./docs/arquitectura.md), [modelo económico](./docs/modelo-economico.md), [integración](./docs/integracion.md) y [operación](./docs/operacion.md). La política de seguridad y los supuestos están en [SECURITY.md](./SECURITY.md).
+
+## Entrega
+
+La versión `v1.0.0` identifica el estado versionado de este repositorio. `main`, `production` y el tag estable se verifican mediante CI de integridad. Esa denominación no acredita un despliegue en una red pública ni custodia de activos externos.
+
+Licencia MIT.

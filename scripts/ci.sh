@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-npm run build
-npm test
+bun run build
+bun run typecheck
+bun run test
